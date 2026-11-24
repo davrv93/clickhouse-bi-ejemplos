@@ -1,0 +1,8 @@
+# Saltos de línea de Linux aunque se clone en Windows: los scripts y el SQL corren dentro de contenedores Linux.
+* text=auto eol=lf
+*.xlsx binary
+*.docx binary
+*.pdf binary
+*.png binary
+# Los CSV de datos se guardan tal cual (ventas-sucio.csv viene con saltos de Windows, como sale de Excel).
+*.csv -text

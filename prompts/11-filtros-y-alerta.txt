@@ -1,0 +1,8 @@
+Agrega a mi tablero:
+1. Filtros de sede, categoría y período (desde / hasta, por mes). Llénalos con los valores
+   que hay en la tabla. Al cambiar uno, recalcula todo: KPIs, gráficos y tabla.
+2. Una alerta arriba de los KPIs: compara el último mes del período con el anterior, sede
+   por sede (respetando el filtro de categoría). Si alguna cae más de 15 %, muéstrala en rojo
+   con la sede, el porcentaje y los dos montos. Si no, un aviso verde que lo diga.
+3. Escapa los valores de los filtros antes de ponerlos en el SQL.
+No cambies el estilo.

@@ -1,0 +1,99 @@
+{
+ "reglas": [
+  {
+   "id": "R01",
+   "columna": "fecha",
+   "problema": "Hay dos formatos de fecha mezclados: 5642 filas en 'aaaa-mm-dd' y 502 en 'dd/mm/aaaa'.",
+   "regla": "Unificar todas las fechas a formato ISO aaaa-mm-dd interpretando las que vienen como dd/mm/aaaa.",
+   "accion": "convertir_fecha",
+   "parametros": {
+    "formatos_entrada": [
+     "aaaa-mm-dd",
+     "dd/mm/aaaa"
+    ],
+    "formato_salida": "aaaa-mm-dd"
+   },
+   "verificacion": "Contar filas con fecha válida tras la conversión (debe ser 6144) y comprobar que no quedan valores con patrón dd/mm/aaaa ni fechas nulas."
+  },
+  {
+   "id": "R02",
+   "columna": "sede",
+   "problema": "La misma sede aparece con variantes de mayúsculas/minúsculas y espacios sobrantes (' lima centro', 'Arequipa ', 'SURCO', ' miraflores', 'Miraflores ', 'surco', ' arequipa', 'LIMA CENTRO', 'Lima Centro ', 'AREQUIPA', 'MIRAFLORES').",
+   "regla": "Recortar espacios al inicio y final y normalizar a formato título (primera letra de cada palabra en mayúscula, resto en minúscula).",
+   "accion": "recortar_y_capitalizar",
+   "parametros": {
+    "trim": true,
+    "capitalizacion": "titulo"
+   },
+   "verificacion": "Tras aplicar, el conteo de valores distintos de sede debe reducirse a 4 ('Surco','Miraflores','Arequipa','Lima Centro') y la suma de filas debe seguir siendo 6144."
+  },
+  {
+   "id": "R03",
+   "columna": "categoria",
+   "problema": "La misma categoría aparece en mayúsculas y en formato título ('CUIDADO PERSONAL', 'BEBÉS', 'MEDICAMENTOS', 'DERMOCOSMÉTICA', 'SUPLEMENTOS').",
+   "regla": "Recortar espacios y normalizar a formato título respetando tildes.",
+   "accion": "recortar_y_capitalizar",
+   "parametros": {
+    "trim": true,
+    "capitalizacion": "titulo"
+   },
+   "verificacion": "Tras aplicar, el conteo de valores distintos de categoria debe reducirse a 5 ('Dermocosmética','Suplementos','Bebés','Medicamentos','Cuidado personal') y la suma de filas debe seguir siendo 6144."
+  },
+  {
+   "id": "R04",
+   "columna": "(todas)",
+   "problema": "Hay 64 filas idénticas repetidas en el conjunto.",
+   "regla": "Eliminar filas completamente duplicadas conservando una sola copia de cada una.",
+   "accion": "quitar_duplicados",
+   "parametros": {
+    "comparar_todas_las_columnas": true,
+    "conservar": "primera"
+   },
+   "verificacion": "El número de filas debe bajar de 6144 a 6080 (6144 - 64) y no deben quedar grupos de filas idénticas."
+  },
+  {
+   "id": "R05",
+   "columna": "margen",
+   "problema": "Hay 111 valores vacíos en margen.",
+   "regla": "Dejar los vacíos como nulos explícitos, sin imputar promedios ni valores estimados.",
+   "accion": "dejar_vacio_como_nulo",
+   "parametros": {
+    "representacion": "null"
+   },
+   "verificacion": "Contar nulos en margen: debe ser 111 y no debe haber valores imputados; documentar que esos registros quedan sin margen."
+  },
+  {
+   "id": "R06",
+   "columna": "unidades",
+   "problema": "El rango observado es 5.0 a 83.0, lo que sugiere que la columna se leyó como decimal aunque representa conteos enteros.",
+   "regla": "Convertir unidades a tipo entero.",
+   "accion": "convertir_tipo",
+   "parametros": {
+    "tipo_destino": "entero"
+   },
+   "verificacion": "Comprobar que todas las unidades son enteras (sin parte decimal) y que el rango sigue siendo 5 a 83."
+  },
+  {
+   "id": "R07",
+   "columna": "venta",
+   "problema": "El rango observado es 132.28 a 4176.37, valores monetarios con decimales.",
+   "regla": "Asegurar que venta se almacene como tipo numérico decimal (float) sin alterar sus valores.",
+   "accion": "convertir_tipo",
+   "parametros": {
+    "tipo_destino": "decimal"
+   },
+   "verificacion": "Comprobar que todas las filas de venta son numéricas, sin nulos, y que el rango se mantiene entre 132.28 y 4176.37."
+  },
+  {
+   "id": "R08",
+   "columna": "margen",
+   "problema": "El rango observado es 0.21 a 0.48, valores numéricos con decimales (posiblemente proporción).",
+   "regla": "Asegurar que margen se almacene como tipo numérico decimal (float) sin alterar sus valores, manteniendo los vacíos como nulos.",
+   "accion": "convertir_tipo",
+   "parametros": {
+    "tipo_destino": "decimal"
+   },
+   "verificacion": "Comprobar que los valores no nulos de margen son numéricos y que el rango se mantiene entre 0.21 y 0.48, con 111 nulos."
+  }
+ ]
+}

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ventas · ClickHouse</title>
+<!--
+  Tablero de ventas que consulta ClickHouse en vivo por su API HTTP.
+  Servido con `docker compose up -d` en http://127.0.0.1:8080: el contenedor «tablero» pasa las consultas
+  de /clickhouse/ a ClickHouse. Si abres el archivo con doble clic, consulta directo http://127.0.0.1:8123.
+  Parámetros de la URL (todos opcionales):
+    ch=http://127.0.0.1:8123/                 otra dirección de ClickHouse
+    fuente=ventas_tablero | resumen_mensual   de qué tabla lee (por defecto ventas_tablero)
+    usuario=taller  clave=taller123           con qué usuario consulta (para compartir: usuario de solo lectura)
+    sede=…  categoria=…  desde=2026-01  hasta=2026-10   filtros iniciales
+    refresco=60                                segundos entre recargas (0 = sin recarga)
+-->
+<style>
+:root{--bg:#FFFFFF;--bg2:#F5F5F7;--tx:#1D1D1F;--tx2:#6E6E73;--ac:#0071E3;--ok:#34C759;--warn:#FF9F0A;--mal:#FF3B30;--r:18px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg2);color:var(--tx);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1360px;margin:0 auto;padding:30px 44px 36px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.tit{display:flex;align-items:center;gap:14px}
+.logo{width:44px;height:44px;border-radius:12px;background:var(--bg);box-shadow:0 1px 2px rgba(0,0,0,.06),0 6px 18px rgba(0,0,0,.05);display:grid;place-items:center;color:var(--ac)}
+h1{font-size:28px;font-weight:700;letter-spacing:-.6px;margin:0}
+.sub{color:var(--tx2);font-size:14px;margin-top:2px}
+.vivo{display:flex;align-items:center;gap:8px;color:var(--tx2);font-size:13px;background:var(--bg);padding:8px 14px;border-radius:999px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.vivo i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px #34C75922}
+.filtros{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.filtros label{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:12px;padding:7px 8px 7px 14px;font-size:13px;color:var(--tx2);box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.filtros select{appearance:none;border:0;background:var(--bg2);border-radius:8px;padding:6px 26px 6px 10px;font:600 14px -apple-system,BlinkMacSystemFont,Inter,sans-serif;color:var(--tx);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236E6E73' fill='none' stroke-width='1.6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
+.filtros .activo select{background-color:#0071E31A;color:var(--ac)}
+.alerta{display:flex;gap:14px;align-items:flex-start;border-radius:var(--r);padding:14px 20px;margin-bottom:16px;font-size:15px}
+.alerta.mal{background:#FF3B3012;border:1px solid #FF3B3040;color:#B42318}
+.alerta.bien{background:#34C75912;border:1px solid #34C75940;color:#1E7A35}
+.alerta b{display:block;font-size:15px}
+.alerta svg{flex:none;margin-top:2px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:18px}
+.card{background:var(--bg);border-radius:var(--r);box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.05);padding:22px 24px}
+.kpi .lab{color:var(--tx2);font-size:14px;font-weight:500}
+.kpi .val{font-size:34px;font-weight:700;letter-spacing:-1px;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .det{font-size:13px;color:var(--tx2);margin-top:2px}
+.sube{color:#1E7A35}.baja{color:#B42318}
+.grid{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+h2{font-size:16px;font-weight:600;margin:0 0 14px}
+.barra{display:grid;grid-template-columns:150px 1fr 110px;align-items:center;gap:12px;margin:9px 0;font-size:14px}
+.barra .pista{height:10px;border-radius:6px;background:var(--bg2);overflow:hidden}
+.barra .pista b{display:block;height:100%;border-radius:6px;background:var(--ac)}
+.barra .n{text-align:right;color:var(--tx2);font-variant-numeric:tabular-nums}
+svg.linea{width:100%;height:190px;display:block}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;border-bottom:1px solid #EDEDF0;text-align:left}
+th{color:var(--tx2);font-weight:500;font-size:13px}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.err{color:#B42318;padding:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tit">
+      <div class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg></div>
+      <div><h1>Ventas de las boticas</h1><div class="sub" id="sub">ClickHouse en vivo</div></div>
+    </div>
+    <div class="vivo"><i></i><span id="estado">Conectando…</span></div>
+  </header>
+
+  <div class="filtros">
+    <label id="f-sede">Sede <select id="sede"><option value="">Todas</option></select></label>
+    <label id="f-cat">Categoría <select id="categoria"><option value="">Todas</option></select></label>
+    <label id="f-desde">Desde <select id="desde"></select></label>
+    <label id="f-hasta">Hasta <select id="hasta"></select></label>
+  </div>
+
+  <div id="alerta"></div>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="lab">Venta total</div><div class="val" id="k-venta">—</div><div class="det" id="k-venta-d">&nbsp;</div></div>
+    <div class="card kpi"><div class="lab">Unidades</div><div class="val" id="k-uni">—</div><div class="det" id="k-uni-d">&nbsp;</div></div>
+    <div class="card kpi"><div class="lab">Margen ponderado</div><div class="val" id="k-margen">—</div><div class="det">por venta, sin contar vacíos</div></div>
+    <div class="card kpi"><div class="lab" id="k-var-l">Último mes vs. anterior</div><div class="val" id="k-var">—</div><div class="det" id="k-var-d">&nbsp;</div></div>
+  </section>
+
+  <section class="grid">
+    <div class="card"><h2>Venta por mes</h2><svg class="linea" id="linea" viewBox="0 0 700 190" preserveAspectRatio="none"></svg>
+      <div id="meses" style="display:flex;justify-content:space-between;color:var(--tx2);font-size:12px;margin-top:6px"></div></div>
+    <div class="card"><h2>Venta por sede</h2><div id="sedes"></div></div>
+  </section>
+  <section class="grid2">
+    <div class="card"><h2>Venta por categoría</h2><div id="cats"></div></div>
+    <div class="card"><h2>Lo más vendido · sede × categoría</h2><table><thead><tr><th>#</th><th>Sede</th><th>Categoría</th><th style="text-align:right">Venta</th></tr></thead><tbody id="top"></tbody></table></div>
+  </section>
+</div>
+<script>
+const P = new URLSearchParams(location.search);
+const FUENTE = P.get('fuente') || 'ventas_tablero';
+const USUARIO = P.get('usuario') || 'taller', CLAVE = P.get('clave') || 'taller123';
+const REFRESCO = +(P.get('refresco') ?? 60);
+const UMBRAL = -15;   // alerta: caída mayor al 15 % frente al mes anterior
+const API = P.get('ch') || (location.protocol.startsWith('http') ? '/clickhouse/' : 'http://127.0.0.1:8123/');
+const CH = `${API}?add_http_cors_header=1&default_format=JSON&user=${encodeURIComponent(USUARIO)}&password=${encodeURIComponent(CLAVE)}&query=`;
+// las dos fuentes tienen la misma forma: mes, sede, categoria, venta, unidades, vxm (venta × margen) y vcm (venta con margen)
+const BASE = FUENTE === 'resumen_mensual' ? 'resumen_mensual'
+  : `(SELECT toStartOfMonth(fecha) AS mes, sede, categoria, venta, unidades,
+       if(margen IS NULL, 0, venta * margen) AS vxm, if(margen IS NULL, 0, venta) AS vcm FROM ventas_tablero)`;
+const q = async sql => {
+  const r = await fetch(CH + encodeURIComponent(sql));
+  if (!r.ok) throw new Error((await r.text()).split('. (')[0].slice(0, 220));
+  return (await r.json()).data;
+};
+const S = n => 'S/ ' + Math.round(n).toLocaleString('es-PE');
+const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const nomMes = m => MES[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const lit = s => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+const $ = id => document.getElementById(id);
+
+function donde(conPeriodo = true) {
+  const w = conPeriodo ? [`mes BETWEEN toDate(${lit($('desde').value + '-01')}) AND toDate(${lit($('hasta').value + '-01')})`] : ['1'];
+  if ($('sede').value) w.push(`sede = ${lit($('sede').value)}`);
+  if ($('categoria').value) w.push(`categoria = ${lit($('categoria').value)}`);
+  return 'WHERE ' + w.join(' AND ');
+}
+
+function barras(el, filas, campo) {
+  const max = Math.max(...filas.map(f => +f.v), 1);
+  $(el).innerHTML = filas.map(f => `<div class="barra"><span>${esc(f[campo])}</span><div class="pista"><b style="width:${(+f.v / max * 100).toFixed(1)}%"></b></div><span class="n">${S(f.v)}</span></div>`).join('');
+}
+
+function linea(filas) {
+  const vs = filas.map(f => +f.v), max = Math.max(...vs, 1) * 1.08, min = Math.min(...vs) * 0.85;
+  const W = 700, H = 190, n = Math.max(vs.length - 1, 1);
+  const pts = vs.map((v, i) => [i / n * (W - 20) + 10, H - 10 - (v - min) / (max - min) * (H - 30)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  $('linea').innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0071E3" stop-opacity=".18"/><stop offset="1" stop-color="#0071E3" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L${pts.at(-1)[0]} ${H} L${pts[0][0]} ${H} Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="#0071E3" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`
+    + pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#fff" stroke="#0071E3" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join('');
+  $('meses').innerHTML = filas.map(f => `<span>${MES[+f.ym.slice(5, 7) - 1]}</span>`).join('');
+}
+
+async function cargarOpciones() {
+  const [sedes, cats, meses] = await Promise.all([
+    q(`SELECT DISTINCT sede AS x FROM ${BASE} ORDER BY x`), q(`SELECT DISTINCT categoria AS x FROM ${BASE} ORDER BY x`),
+    q(`SELECT DISTINCT formatDateTime(mes, '%Y-%m') AS x FROM ${BASE} ORDER BY x`)]);
+  for (const [id, filas] of [['sede', sedes], ['categoria', cats]])
+    $(id).insertAdjacentHTML('beforeend', filas.map(f => `<option>${esc(f.x)}</option>`).join(''));
+  for (const id of ['desde', 'hasta']) $(id).innerHTML = meses.map(f => `<option value="${f.x}">${nomMes(f.x)}</option>`).join('');
+  $('desde').value = P.get('desde') || meses[0].x; $('hasta').value = P.get('hasta') || meses.at(-1).x;
+  if (P.get('sede')) $('sede').value = P.get('sede');
+  if (P.get('categoria')) $('categoria').value = P.get('categoria');
+}
+
+async function actualizar() {
+  try {
+    for (const [id, f] of [['sede', 'f-sede'], ['categoria', 'f-cat']]) $(f).classList.toggle('activo', !!$(id).value);
+    const W = donde();
+    const [tot, mes, sedes, cats, top] = await Promise.all([
+      q(`SELECT sum(venta) AS v, sum(unidades) AS u, sum(vxm) / nullIf(sum(vcm), 0) AS m FROM ${BASE} ${W}`),
+      q(`SELECT formatDateTime(mes, '%Y-%m') AS ym, sum(venta) AS v FROM ${BASE} ${W} GROUP BY ym ORDER BY ym`),
+      q(`SELECT sede, sum(venta) AS v FROM ${BASE} ${W} GROUP BY sede ORDER BY v DESC`),
+      q(`SELECT categoria, sum(venta) AS v FROM ${BASE} ${W} GROUP BY categoria ORDER BY v DESC`),
+      q(`SELECT sede, categoria, sum(venta) AS v FROM ${BASE} ${W} GROUP BY sede, categoria ORDER BY v DESC LIMIT 8`)]);
+    // caídas: último mes del período frente al anterior, por sede (y por categoría si hay filtro de categoría)
+    const caidas = await q(`SELECT sede, v, ant, round((toFloat64(v) - ant) / ant * 100, 1) AS var FROM (
+        SELECT sede, sumIf(venta, mes = toDate(${lit($('hasta').value + '-01')})) AS v,
+               toFloat64(sumIf(venta, mes = addMonths(toDate(${lit($('hasta').value + '-01')}), -1))) AS ant
+        FROM ${BASE} ${donde(false)} GROUP BY sede) WHERE ant > 0 AND var < ${UMBRAL} ORDER BY var`);
+    const t = tot[0];
+    $('k-venta').textContent = S(t.v);
+    $('k-uni').textContent = Math.round(t.u).toLocaleString('es-PE');
+    $('k-margen').textContent = t.m == null ? '—' : (t.m * 100).toFixed(1) + ' %';
+    $('k-venta-d').textContent = `${nomMes($('desde').value)} – ${nomMes($('hasta').value)}`;
+    $('k-uni-d').textContent = `${mes.length} meses`;
+    if (mes.length >= 2) {
+      const a = +mes.at(-1).v, b = +mes.at(-2).v, v = (a - b) / b * 100;
+      $('k-var').innerHTML = `<span class="${v < 0 ? 'baja' : 'sube'}">${v < 0 ? '▼' : '▲'} ${Math.abs(v).toFixed(1)} %</span>`;
+      $('k-var-d').textContent = `${nomMes(mes.at(-1).ym)} frente a ${nomMes(mes.at(-2).ym)}`;
+    } else { $('k-var').textContent = '—'; $('k-var-d').textContent = 'elige dos meses o más'; }
+    const ico = c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+    $('alerta').innerHTML = caidas.length
+      ? `<div class="alerta mal">${ico('#B42318')}<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><div><b>Caída mayor al 15 % en ${nomMes($('hasta').value)}</b>${caidas.map(c => `${esc(c.sede)}: ${c.var} % (${S(c.v)} frente a ${S(c.ant)})`).join(' · ')}</div></div>`
+      : `<div class="alerta bien">${ico('#1E7A35')}<path d="M20 6 9 17l-5-5"/></svg><div><b>Sin caídas mayores al 15 % en ${nomMes($('hasta').value)}</b>frente al mes anterior, en ninguna sede</div></div>`;
+    linea(mes); barras('sedes', sedes, 'sede'); barras('cats', cats, 'categoria');
+    $('top').innerHTML = top.map((f, i) => `<tr><td>${i + 1}</td><td>${esc(f.sede)}</td><td>${esc(f.categoria)}</td><td class="n">${S(f.v)}</td></tr>`).join('');
+    const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    $('estado').textContent = `Actualizado ${hora}` + (REFRESCO ? ` · cada ${REFRESCO} s` : '');
+    $('sub').innerHTML = `Tabla <b>${esc(FUENTE)}</b> en ClickHouse · usuario <b>${esc(USUARIO)}</b>`;
+  } catch (e) {
+    $('estado').textContent = 'Error'; $('alerta').innerHTML = `<div class="alerta mal"><div><b>No se pudo consultar</b>${esc(e.message)}</div></div>`;
+  }
+}
+
+(async () => {
+  try { await cargarOpciones(); } catch (e) { $('estado').textContent = 'Error'; $('alerta').innerHTML = `<div class="alerta mal"><div><b>No se pudo conectar</b>${esc(e.message)}</div></div>`; return; }
+  for (const id of ['sede', 'categoria', 'desde', 'hasta']) $(id).addEventListener('change', actualizar);
+  await actualizar();
+  if (REFRESCO > 0) setInterval(actualizar, REFRESCO * 1000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+ "reglas": [
+  {
+   "id": "R1",
+   "columna": "fecha",
+   "problema": "La columna fecha es String y contiene dos formatos: 'aaaa-mm-dd' (5642 filas) y 'dd/mm/aaaa' (502 filas).",
+   "regla": "Convertir fecha a tipo Date detectando el formato: si contiene '/', parsear como dd/mm/aaaa; si no, como aaaa-mm-dd.",
+   "sql": "if(position(fecha, '/') > 0, toDate(parseDateTimeBestEffort(replaceRegexpAll(fecha, '^(\\\\d{2})/(\\\\d{2})/(\\\\d{4})$', '\\\\3-\\\\2-\\\\1'))), toDate(parseDateTimeBestEffort(fecha)))",
+   "verificacion": "SELECT count() FROM (SELECT if(position(fecha, '/') > 0, toDate(parseDateTimeBestEffort(replaceRegexpAll(fecha, '^(\\\\d{2})/(\\\\d{2})/(\\\\d{4})$', '\\\\3-\\\\2-\\\\1'))), toDate(parseDateTimeBestEffort(fecha))) AS f FROM ventas_crudas) WHERE f IS NULL OR f < toDate('2000-01-01') OR f > toDate('2100-01-01')"
+  },
+  {
+   "id": "R2",
+   "columna": "sede",
+   "problema": "La columna sede tiene variantes de mayúsculas/minúsculas de los mismos valores ('lima centro', 'SURCO', 'miraflores', etc.) que duplican categorías reales.",
+   "regla": "Normalizar sede a formato título (primera letra de cada palabra en mayúscula, resto en minúscula) para unificar las variantes.",
+   "sql": "arrayStringConcat(arrayMap(x -> concat(upper(substring(x,1,1)), lower(substring(x,2))), splitByChar(' ', lower(sede))), ' ')",
+   "verificacion": "SELECT count() FROM (SELECT arrayStringConcat(arrayMap(x -> concat(upper(substring(x,1,1)), lower(substring(x,2))), splitByChar(' ', lower(sede))), ' ') AS s FROM ventas_crudas) WHERE s NOT IN ('Arequipa','Miraflores','Surco','Lima Centro')"
+  },
+  {
+   "id": "R3",
+   "columna": "categoria",
+   "problema": "La columna categoria tiene variantes en mayúsculas ('CUIDADO PERSONAL', 'MEDICAMENTOS', 'BEBÉS', etc.) de los mismos valores.",
+   "regla": "Normalizar categoria a formato título (primera letra de cada palabra en mayúscula, resto en minúscula) para unificar las variantes.",
+   "sql": "arrayStringConcat(arrayMap(x -> concat(upper(substring(x,1,1)), lower(substring(x,2))), splitByChar(' ', lower(categoria))), ' ')",
+   "verificacion": "SELECT count() FROM (SELECT arrayStringConcat(arrayMap(x -> concat(upper(substring(x,1,1)), lower(substring(x,2))), splitByChar(' ', lower(categoria))), ' ') AS c FROM ventas_crudas) WHERE c NOT IN ('Dermocosmética','Suplementos','Bebés','Medicamentos','Cuidado personal')"
+  },
+  {
+   "id": "R4",
+   "columna": "margen",
+   "problema": "La columna margen tiene 111 valores nulos (Nullable). No se deben rellenar con valores inventados.",
+   "regla": "Mantener los nulos de margen tal cual; no imputar valores.",
+   "sql": "margen",
+   "verificacion": "SELECT count() FROM (SELECT margen FROM ventas_crudas) WHERE margen IS NULL"
+  },
+  {
+   "id": "R5",
+   "columna": "*",
+   "problema": "Hay 64 filas idénticas repetidas en la tabla.",
+   "regla": "Eliminar filas duplicadas idénticas usando DISTINCT sobre todas las columnas.",
+   "sql": "DISTINCT",
+   "verificacion": "SELECT count() - uniqExact(tuple(fecha, sede, categoria, unidades, venta, margen)) FROM ventas_crudas"
+  }
+ ]
+}

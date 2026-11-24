@@ -1,0 +1,4 @@
+{
+ "sede": "initcapUTF8(lowerUTF8(sede))",
+ "categoria": "concat(upperUTF8(substringUTF8(lowerUTF8(categoria), 1, 1)), substringUTF8(lowerUTF8(categoria), 2))"
+}
