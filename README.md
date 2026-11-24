@@ -41,7 +41,7 @@ Si ves **Hello from Docker!**, estás listo.
 Con Git:
 
 ```
-git clone https://github.com/<usuario>/clickhouse-bi-ejemplos.git
+git clone https://github.com/davrv93/clickhouse-bi-ejemplos.git
 cd clickhouse-bi-ejemplos
 ```
 
