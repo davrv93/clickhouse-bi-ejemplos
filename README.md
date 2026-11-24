@@ -4,11 +4,19 @@ Ejemplos del curso de JMD Learning: levantas ClickHouse con Docker, cargas y lim
 
 Solo necesitas **Docker Desktop**. Python, las librerías para leer Excel, PDF y Word, y el servidor del tablero vienen dentro de los contenedores. Por eso **los comandos son los mismos en Windows (PowerShell) y en Mac (Terminal)**.
 
+![Tablero de ventas de las cuatro boticas: venta total, unidades, margen, venta por mes, por sede y por categoría](docs/img/10-tablero.png)
+
+<sub>El tablero que construyes en la sesión 2, consultando ClickHouse en vivo.</sub>
+
 Los datos son **ficticios**: ventas inventadas de cuatro boticas entre enero y octubre de 2026, con errores puestos a propósito para practicar la limpieza.
 
 ---
 
 ## 1. Prepara tu máquina (video 1)
+
+![Cómo instalar Docker en Windows (Docker Desktop con WSL 2), Mac (Docker Desktop) y Linux (Docker Engine)](docs/img/01-instala-docker.jpg)
+
+<sub>Lámina del video 1. Windows y Linux aparecen recreados; los pasos son los de docs.docker.com.</sub>
 
 ### Windows 10 u 11
 
@@ -69,6 +77,10 @@ La primera vez descarga las imágenes; tarda unos minutos. Cuando `clickhouse` d
 
 > Usa siempre `127.0.0.1`. Docker publica los puertos solo en tu máquina, nadie de tu red puede entrar.
 
+![Salida de docker compose ps con clickhouse en estado healthy y el tablero en el puerto 8080](docs/img/04-compose-ps.png)
+
+<sub>Así se ve cuando todo está arriba: `clickhouse` en **healthy**.</sub>
+
 ## 5. Cómo se ejecutan los pasos
 
 Todo pasa por el contenedor **herramientas**:
@@ -107,6 +119,10 @@ docker compose run --rm herramientas sql.py sql/sesion-1/02-persistencia.sql
 
 `SELECT * FROM notas` sigue mostrando la fila (el `INSERT` agrega una segunda igual: eso también prueba que la primera sobrevivió).
 
+![La tabla notas conserva su fila después de docker compose down y up](docs/img/02-persistencia.png)
+
+<sub>Después de `down` y `up`, la fila sigue ahí.</sub>
+
 > `docker compose down -v` sí borra el volumen y **todos tus datos**. Úsalo solo si quieres empezar de cero.
 
 Para mirar dentro del contenedor:
@@ -134,6 +150,10 @@ docker compose run --rm herramientas sql.py sql/sesion-1/03-verificar-carga.sql
 
 Lo esperado: 6144 filas en `ventas_crudas`.
 
+![Creación de ventas_crudas con tipos, carga del CSV con 6144 filas y del Excel con 3072 filas](docs/img/03-carga.png)
+
+<sub>Tipos explícitos con `DESCRIBE` y el conteo de filas de cada carga.</sub>
+
 ### Video 4 · Limpieza con reglas de IA y verificación de totales
 
 1. Mira qué está mal y saca el **perfil** de la tabla. El perfil tiene conteos y valores distintos, **no filas**: es lo único que verá la IA.
@@ -152,6 +172,10 @@ Lo esperado: 6144 filas en `ventas_crudas`.
    docker compose run --rm herramientas sql.py sql/sesion-1/04-verificar-limpieza.sql
    ```
    El control debe decir **CUADRA**: la venta limpia es la cruda menos lo que sumaban las filas repetidas.
+
+![Reglas de limpieza aplicadas: cinco categorías con 1216 filas cada una y el control CUADRA](docs/img/04-cuadra.png)
+
+<sub>Con la corrección humana quedan cinco categorías limpias y el total cuadra.</sub>
 
 ---
 
@@ -177,6 +201,10 @@ docker compose run --rm herramientas extraer.py
 ```
 
 Resultado: `salida/juntos.csv` con 6144 filas.
+
+![Extracción de las hojas del Excel, las 42 páginas del PDF y las tablas del Word: 6144 filas en total](docs/img/06-extraer.png)
+
+<sub>Las tres fuentes juntas en una sola tabla.</sub>
 
 ### Video 7 · Reglas de IA para unir fuentes distintas
 
@@ -206,9 +234,17 @@ docker compose run --rm herramientas sql.py sql/sesion-2/08-revisar-modelo.sql
 docker compose run --rm herramientas sql.py sql/sesion-2/09-consultas-del-tablero.sql
 ```
 
+![Resultados de las cinco consultas del tablero: totales, venta por mes, por sede, lo más vendido y la caída de Lima Centro en junio](docs/img/09-consultas.png)
+
+<sub>Las cinco consultas que alimentan el tablero. La última detecta la caída de Lima Centro en junio (−16.1 %).</sub>
+
 ### Video 10 · El dashboard estilo Apple
 
 Abre <http://127.0.0.1:8080>. El tablero es un solo archivo, `tablero/index.html`, hecho con el prompt de `prompts/10-tablero.txt`. Consulta ClickHouse en vivo por su API HTTP.
+
+![Tablero de ventas estilo Apple con KPIs, línea de venta por mes y barras por sede y por categoría](docs/img/10-tablero.png)
+
+<sub>Fondo claro, un solo acento azul y los datos de ClickHouse.</sub>
 
 ### Video 11 · Filtros y alertas
 
@@ -217,6 +253,10 @@ El tablero ya trae los filtros de sede, categoría y período, y la alerta de ca
 ```
 docker compose run --rm herramientas sql.py sql/sesion-2/11-alerta-junio.sql
 ```
+
+![Tablero filtrado por Lima Centro hasta junio de 2026 con la alerta roja de caída del 16.1 %](docs/img/11-filtros-alerta.png)
+
+<sub>Filtro de sede Lima Centro y período hasta junio: se enciende la alerta.</sub>
 
 ### Video 12 · Refresco automático
 
@@ -231,6 +271,10 @@ Espera hasta un minuto y comprueba que la venta de prueba entró sola al resumen
 docker compose run --rm herramientas sql.py sql/sesion-2/12-ver-refresco.sql
 ```
 
+![La venta de prueba no está en el resumen al insertarla y aparece sola un minuto después](docs/img/12-refresco.png)
+
+<sub>Nadie recarga nada: la vista materializada se refresca cada minuto.</sub>
+
 Tablero leyendo el resumen: <http://127.0.0.1:8080/?fuente=resumen_mensual>
 
 ### Video 13 · Publicar o compartir sin regalar tu clave
@@ -240,7 +284,13 @@ docker compose run --rm herramientas sql.py sql/sesion-2/13-usuario-lector.sql
 docker compose run --rm herramientas sql.py sql/sesion-2/13-pruebas-lector.sql --usuario lector --clave lector2026 --seguir
 ```
 
-La prueba 1 responde y las pruebas 2 y 3 fallan con `ACCESS_DENIED`: eso es lo correcto. Tablero con el usuario de solo lectura:
+La prueba 1 responde y las pruebas 2 y 3 fallan con `ACCESS_DENIED`: eso es lo correcto.
+
+![El usuario lector lee resumen_mensual pero no puede leer ventas_tablero ni insertar: ACCESS_DENIED](docs/img/13-lector.png)
+
+<sub>Lo que debes ver: una lectura que funciona y dos intentos bloqueados.</sub>
+
+Tablero con el usuario de solo lectura:
 
 <http://127.0.0.1:8080/?fuente=resumen_mensual&usuario=lector&clave=lector2026>
 
@@ -253,6 +303,10 @@ Los seis pasos en un solo comando: extraer, perfil, reglas, aplicar y conciliar,
 ```
 docker compose run --rm herramientas pipeline.py
 ```
+
+![Los seis pasos del pipeline en unos dos segundos, terminando con el control CUADRA](docs/img/14-pipeline.png)
+
+<sub>Los seis pasos en un comando. El total del tablero y el del resumen coinciden.</sub>
 
 Para tus propios datos, reemplaza los archivos de `datos/archivos/` y ajusta en `extraer.py` cómo se leen. Las columnas deben quedar como `fecha, sede, categoria, unidades, venta, margen`.
 
@@ -267,6 +321,10 @@ Para tus propios datos, reemplaza los archivos de `datos/archivos/` y ajusta en 
 - **Windows: no uses `curl` en PowerShell para hablar con ClickHouse.** En PowerShell 5, `curl` es otro comando. Usa `cargar.py` y `sql.py`, o escribe `curl.exe`.
 - **Empezar de cero**: `docker compose down -v` borra el volumen con todos los datos. Luego `docker compose up -d`.
 
+## Sobre las imágenes
+
+Las capturas de terminal y del tablero son salidas reales de este repositorio en una Mac, con los mismos comandos de esta guía. En Windows la salida es la misma; cambia solo el aspecto de la ventana.
+
 ## Qué hay en el repositorio
 
 ```
@@ -277,6 +335,7 @@ herramientas/            scripts de Python que corren dentro del contenedor
 sql/sesion-1, sesion-2   el SQL de cada video, numerado igual que los videos
 prompts/                 los prompts de reglas, del tablero y de filtros
 tablero/                 el tablero de un solo archivo (index.html)
+docs/img/                las imágenes de esta guía
 ```
 
 ## Licencia
